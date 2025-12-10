@@ -2,6 +2,13 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
+console.log("🔥 Firebase ENV CHECK:", {
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+  hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+});
+
+
 // Initialize Firebase Admin SDK
 function initFirebaseAdmin() {
   const apps = getApps();
