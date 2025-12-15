@@ -10,19 +10,39 @@ import {
   getLatestInterviews,
 } from "@/lib/actions/general.action";
 
+/* ============================
+   TYPES
+============================ */
+type Interview = {
+  id: string;
+  role: string;
+  type: string;
+  techstack: string[];
+  createdAt: string;
+};
+
 async function Home() {
   const user = await getCurrentUser();
 
+  if (!user) {
+    return null;
+  }
+
   const [userInterviews, allInterview] = await Promise.all([
-    getInterviewsByUserId(user?.id!),
-    getLatestInterviews({ userId: user?.id! }),
+    getInterviewsByUserId(user.id),
+    getLatestInterviews({ userId: user.id }),
   ]);
 
-  const hasPastInterviews = userInterviews?.length! > 0;
-  const hasUpcomingInterviews = allInterview?.length! > 0;
+  // ✅ Explicit typing (THIS fixes your TS errors)
+  const pastInterviews = userInterviews as Interview[];
+  const upcomingInterviews = allInterview as Interview[];
+
+  const hasPastInterviews = pastInterviews.length > 0;
+  const hasUpcomingInterviews = upcomingInterviews.length > 0;
 
   return (
     <>
+      {/* ================= CTA ================= */}
       <section className="card-cta">
         <div className="flex flex-col gap-6 max-w-lg">
           <h2>Get Interview-Ready with AI-Powered Practice & Feedback</h2>
@@ -44,15 +64,16 @@ async function Home() {
         />
       </section>
 
+      {/* ================= YOUR INTERVIEWS ================= */}
       <section className="flex flex-col gap-6 mt-8">
         <h2>Your Interviews</h2>
 
         <div className="interviews-section">
           {hasPastInterviews ? (
-            userInterviews?.map((interview) => (
+            pastInterviews.map((interview) => (
               <InterviewCard
                 key={interview.id}
-                userId={user?.id}
+                userId={user.id}
                 interviewId={interview.id}
                 role={interview.role}
                 type={interview.type}
@@ -66,15 +87,16 @@ async function Home() {
         </div>
       </section>
 
+      {/* ================= TAKE INTERVIEWS ================= */}
       <section className="flex flex-col gap-6 mt-8">
         <h2>Take Interviews</h2>
 
         <div className="interviews-section">
           {hasUpcomingInterviews ? (
-            allInterview?.map((interview) => (
+            upcomingInterviews.map((interview) => (
               <InterviewCard
                 key={interview.id}
-                userId={user?.id}
+                userId={user.id}
                 interviewId={interview.id}
                 role={interview.role}
                 type={interview.type}

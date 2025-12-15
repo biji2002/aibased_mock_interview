@@ -8,7 +8,6 @@ import { auth } from "@/firebase/client";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -16,22 +15,26 @@ import {
 
 import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-
 import { signIn, signUp } from "@/lib/actions/auth.action";
 import FormField from "./FormField";
 
-const authFormSchema = (type: FormType) => {
-  return z.object({
-    name: type === "sign-up" ? z.string().min(3) : z.string().optional(),
-    email: z.string().email(),
-    password: z.string().min(3),
-  });
+type AuthFormProps = {
+  type: "sign-in" | "sign-up";
 };
 
-const AuthForm = ({ type }: { type: FormType }) => {
+const authFormSchema = (type: AuthFormProps["type"]) =>
+  z.object({
+    name: type === "sign-up" ? z.string().min(3) : z.string().optional(),
+    email: z.string().email("Invalid email"),
+    password: z.string().min(3, "Password too short"),
+  });
+
+const AuthForm = ({ type }: AuthFormProps) => {
   const router = useRouter();
+  const isSignIn = type === "sign-in";
 
   const formSchema = authFormSchema(type);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -66,58 +69,65 @@ const AuthForm = ({ type }: { type: FormType }) => {
 
         toast.success("Account created successfully. Please sign in.");
         router.push("/sign-in");
-      } else {
-        const { email, password } = data;
-
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        const idToken = await userCredential.user.getIdToken();
-        if (!idToken) {
-          toast.error("Sign in Failed. Please try again.");
-          return;
-        }
-
-        await signIn({
-          email,
-          idToken,
-        });
-
-        toast.success("Signed in successfully.");
-        router.push("/");
+        return;
       }
+
+      // 🔐 SIGN IN
+      const { email, password } = data;
+
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+      const idToken = await userCredential.user.getIdToken();
+
+      if (!idToken) {
+        toast.error("Authentication failed. Please try again.");
+        return;
+      }
+
+      const result = await signIn({ email, idToken });
+
+      if (!result?.success) {
+        toast.error("Sign in failed. Please try again.");
+        return;
+      }
+
+      toast.success("Signed in successfully");
+
+      // ✅ SAFE redirect (better than router.push here)
+      window.location.replace("/");
     } catch (error) {
-      console.log(error);
-      toast.error(`There was an error: ${error}`);
+      console.error(error);
+      toast.error("Something went wrong. Please try again.");
     }
   };
-
-  const isSignIn = type === "sign-in";
 
   return (
     <div className="card-border lg:min-w-[566px]">
       <div className="flex flex-col gap-6 card py-14 px-10">
-        <div className="flex flex-row gap-2 justify-center">
+        <div className="flex flex-row gap-2 justify-center items-center">
           <Image src="/logo.svg" alt="logo" height={32} width={38} />
           <h2 className="text-primary-100">PrepWise</h2>
         </div>
 
-        <h3>Practice job interviews with AI</h3>
+        <h3 className="text-center">
+          Practice job interviews with AI
+        </h3>
 
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="w-full space-y-6 mt-4 form"
+            className="w-full space-y-6 mt-4"
           >
             {!isSignIn && (
               <FormField
                 control={form.control}
                 name="name"
                 label="Name"
-                placeholder="Your Name"
+                placeholder="Your name"
                 type="text"
               />
             )}
@@ -138,19 +148,27 @@ const AuthForm = ({ type }: { type: FormType }) => {
               type="password"
             />
 
-            <Button className="btn" type="submit">
-              {isSignIn ? "Sign In" : "Create an Account"}
+            <Button
+              type="submit"
+              className="btn w-full"
+              disabled={form.formState.isSubmitting}
+            >
+              {form.formState.isSubmitting
+                ? "Please wait..."
+                : isSignIn
+                ? "Sign In"
+                : "Create Account"}
             </Button>
           </form>
         </Form>
 
-        <p className="text-center">
-          {isSignIn ? "No account yet?" : "Have an account already?"}
+        <p className="text-center text-sm">
+          {isSignIn ? "No account yet?" : "Already have an account?"}
           <Link
-            href={!isSignIn ? "/sign-in" : "/sign-up"}
-            className="font-bold text-user-primary ml-1"
+            href={isSignIn ? "/sign-up" : "/sign-in"}
+            className="ml-1 font-bold text-user-primary"
           >
-            {!isSignIn ? "Sign In" : "Sign Up"}
+            {isSignIn ? "Sign Up" : "Sign In"}
           </Link>
         </p>
       </div>
