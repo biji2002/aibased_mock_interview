@@ -10,7 +10,7 @@ const SESSION_DURATION = 60 * 60 * 24 * 7;
    SET SESSION COOKIE
 ========================= */
 export async function setSessionCookie(idToken: string) {
-  const cookieStore = (await cookies()) as any; // ✅ FIX
+  const cookieStore = await cookies();
 
   const sessionCookie = await auth.createSessionCookie(idToken, {
     expiresIn: SESSION_DURATION * 1000,
@@ -33,6 +33,7 @@ export async function signUp(params: SignUpParams) {
 
   try {
     const userRecord = await db.collection("users").doc(uid).get();
+
     if (userRecord.exists) {
       return {
         success: false,
@@ -49,7 +50,9 @@ export async function signUp(params: SignUpParams) {
       success: true,
       message: "Account created successfully. Please sign in.",
     };
-  } catch {
+  } catch (error: any) {
+    console.error("Error creating user:", error);
+
     return {
       success: false,
       message: "Failed to create account. Please try again.",
@@ -58,13 +61,14 @@ export async function signUp(params: SignUpParams) {
 }
 
 /* =========================
-   SIGN IN ✅ FIXED
+   SIGN IN
 ========================= */
 export async function signIn(params: SignInParams) {
   const { email, idToken } = params;
 
   try {
     const userRecord = await auth.getUserByEmail(email);
+
     if (!userRecord) {
       return {
         success: false,
@@ -78,7 +82,9 @@ export async function signIn(params: SignInParams) {
       success: true,
       message: "Signed in successfully",
     };
-  } catch {
+  } catch (error: any) {
+    console.error("Sign in error:", error);
+
     return {
       success: false,
       message: "Failed to log into account. Please try again.",
@@ -90,7 +96,7 @@ export async function signIn(params: SignInParams) {
    SIGN OUT
 ========================= */
 export async function signOut() {
-  const cookieStore = (await cookies()) as any; // ✅ FIX
+  const cookieStore = await cookies();
   cookieStore.delete("session");
 }
 
@@ -98,9 +104,9 @@ export async function signOut() {
    GET CURRENT USER
 ========================= */
 export async function getCurrentUser(): Promise<User | null> {
-  const cookieStore = await cookies(); // ✅ get() is typed correctly
-
+  const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("session")?.value;
+
   if (!sessionCookie) return null;
 
   try {
@@ -117,7 +123,8 @@ export async function getCurrentUser(): Promise<User | null> {
       ...(userRecord.data() as User),
       id: userRecord.id,
     };
-  } catch {
+  } catch (error) {
+    console.error("Invalid session:", error);
     return null;
   }
 }

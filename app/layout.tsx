@@ -3,29 +3,22 @@ import { Mona_Sans } from "next/font/google";
 import "./globals.css";
 
 const monaSans = Mona_Sans({
-  variable: "--font-mona-sans",
   subsets: ["latin"],
 });
 
-
-
 export const metadata: Metadata = {
-  title: "Prepwise",
-  description: "An AI-powered platform for preparing for interviews",
+  title: "PrepWise",
+  description: "AI Interview Platform",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${monaSans.className}antialiased`}
-      >
-        {children}
-      </body>
+      <body className={monaSans.className}>{children}</body>
     </html>
   );
 }

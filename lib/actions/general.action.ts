@@ -6,7 +6,7 @@ import { db } from "@/firebase/admin";
 import { feedbackSchema } from "@/constants";
 
 /* =========================
-   CREATE INTERVIEW ✅
+   CREATE INTERVIEW
 ========================= */
 export async function createInterview({
   userId,
@@ -48,21 +48,23 @@ export async function createInterview({
 }
 
 /* =========================
-   FINALIZE INTERVIEW ✅
+   FINALIZE INTERVIEW
 ========================= */
 export async function finalizeInterview(interviewId: string) {
   if (!interviewId) {
     console.error("❌ Missing interviewId while finalizing");
-    return;
+    return { success: false };
   }
 
   await db.collection("interviews").doc(interviewId).update({
     finalized: true,
   });
+
+  return { success: true };
 }
 
 /* =========================
-   CREATE FEEDBACK ✅
+   CREATE FEEDBACK
 ========================= */
 export async function createFeedback({
   interviewId,
@@ -152,7 +154,7 @@ export async function getInterviewsByUserId(userId?: string) {
 }
 
 /* =========================
-   GET LATEST INTERVIEWS
+   GET LATEST INTERVIEWS (FIXED)
 ========================= */
 export async function getLatestInterviews({
   userId,
@@ -161,10 +163,12 @@ export async function getLatestInterviews({
   const snap = await db
     .collection("interviews")
     .where("finalized", "==", true)
-    .where("userId", "!=", userId)
     .orderBy("createdAt", "desc")
     .limit(limit)
     .get();
 
-  return snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+  // ✅ Filter client-side (Firestore-safe)
+  return snap.docs
+    .map(doc => ({ id: doc.id, ...(doc.data() as any) }))
+    .filter(interview => interview.userId !== userId);
 }

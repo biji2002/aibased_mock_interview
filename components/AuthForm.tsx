@@ -24,7 +24,7 @@ type AuthFormProps = {
 
 const authFormSchema = (type: AuthFormProps["type"]) =>
   z.object({
-    name: type === "sign-up" ? z.string().min(3) : z.string().optional(),
+    name: type === "sign-up" ? z.string().min(3, "Name is too short") : z.string().optional(),
     email: z.string().email("Invalid email"),
     password: z.string().min(3, "Password too short"),
   });
@@ -33,10 +33,8 @@ const AuthForm = ({ type }: AuthFormProps) => {
   const router = useRouter();
   const isSignIn = type === "sign-in";
 
-  const formSchema = authFormSchema(type);
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<ReturnType<typeof authFormSchema>>>({
+    resolver: zodResolver(authFormSchema(type)),
     defaultValues: {
       name: "",
       email: "",
@@ -44,9 +42,10 @@ const AuthForm = ({ type }: AuthFormProps) => {
     },
   });
 
-  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+  const onSubmit = async (data: z.infer<ReturnType<typeof authFormSchema>>) => {
     try {
-      if (type === "sign-up") {
+      if (!isSignIn) {
+        // ================= SIGN UP =================
         const { name, email, password } = data;
 
         const userCredential = await createUserWithEmailAndPassword(
@@ -68,11 +67,13 @@ const AuthForm = ({ type }: AuthFormProps) => {
         }
 
         toast.success("Account created successfully. Please sign in.");
-        router.push("/sign-in");
+
+        // ✅ force fresh auth page
+        window.location.replace("/sign-in");
         return;
       }
 
-      // 🔐 SIGN IN
+      // ================= SIGN IN =================
       const { email, password } = data;
 
       const userCredential = await signInWithEmailAndPassword(
@@ -97,7 +98,7 @@ const AuthForm = ({ type }: AuthFormProps) => {
 
       toast.success("Signed in successfully");
 
-      // ✅ SAFE redirect (better than router.push here)
+      // ✅ HARD redirect (critical for App Router + server auth)
       window.location.replace("/");
     } catch (error) {
       console.error(error);

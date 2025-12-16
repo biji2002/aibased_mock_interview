@@ -9,6 +9,9 @@ import {
   finalizeInterview,
 } from "@/lib/actions/general.action";
 
+/* ============================
+   ENUMS & TYPES
+============================ */
 enum CallStatus {
   INACTIVE = "INACTIVE",
   CONNECTING = "CONNECTING",
@@ -19,9 +22,19 @@ enum CallStatus {
 interface SavedMessage {
   role: "user" | "assistant";
   content: string;
-  isPartial?: boolean;
 }
 
+interface AgentProps {
+  userName?: string;
+  userId?: string;
+  interviewId?: string;
+  feedbackId?: string;
+  type: "generate" | "interview";
+}
+
+/* ============================
+   COMPONENT
+============================ */
 const Agent = ({
   userName,
   userId,
@@ -33,11 +46,12 @@ const Agent = ({
 
   const [callStatus, setCallStatus] = useState(CallStatus.INACTIVE);
   const [messages, setMessages] = useState<SavedMessage[]>([]);
-  const finalizedRef = useRef(false);
+
   const vapiRef = useRef<any>(null);
+  const finalizedRef = useRef(false);
 
   /* ============================
-     INIT VAPI (CLIENT ONLY)
+     INIT VAPI (RUN ONCE ONLY)
   ============================ */
   useEffect(() => {
     let mounted = true;
@@ -46,66 +60,39 @@ const Agent = ({
       const Vapi = (await import("@vapi-ai/web")).default;
       if (!mounted) return;
 
-      vapiRef.current = new Vapi(
+      const vapi = new Vapi(
         process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY!
       );
 
-      vapiRef.current.on("call-start", () => {
+      vapiRef.current = vapi;
+
+      vapi.on("call-start", () => {
         setCallStatus(CallStatus.ACTIVE);
       });
 
-      vapiRef.current.on("call-end", () => {
+      vapi.on("call-end", () => {
         setCallStatus(CallStatus.FINISHED);
       });
 
-      /* ===== SUBTITLES (PARTIAL + FINAL) ===== */
-      vapiRef.current.on("message", (message: any) => {
-        if (message?.type !== "transcript") return;
-        if (message.role !== "user" && message.role !== "assistant") return;
-
-        // LIVE subtitle
-        if (message.transcriptType === "partial") {
-          setMessages(prev => {
-            const copy = [...prev];
-
-            // Replace last partial line
-            if (
-              copy.length &&
-              copy[copy.length - 1].isPartial &&
-              copy[copy.length - 1].role === message.role
-            ) {
-              copy[copy.length - 1] = {
-                role: message.role,
-                content: message.transcript,
-                isPartial: true,
-              };
-              return copy;
-            }
-
-            return [
-              ...copy,
-              {
-                role: message.role,
-                content: message.transcript,
-                isPartial: true,
-              },
-            ];
-          });
-        }
-
-        // FINAL subtitle
-        if (message.transcriptType === "final") {
+      vapi.on("message", (message: any) => {
+        if (
+          message?.type === "transcript" &&
+          message.transcriptType === "final" &&
+          (message.role === "user" ||
+            message.role === "assistant")
+        ) {
           setMessages(prev => [
-            ...prev.filter(
-              m => !(m.role === message.role && m.isPartial)
-            ),
+            ...prev,
             {
               role: message.role,
               content: message.transcript,
-              isPartial: false,
             },
           ]);
         }
+      });
+
+      vapi.on("error", (e: any) => {
+        console.error("❌ Vapi runtime error:", e);
       });
     };
 
@@ -113,15 +100,16 @@ const Agent = ({
 
     return () => {
       mounted = false;
-      vapiRef.current?.stop?.();
+      // ❌ DO NOT stop Vapi here
     };
-  }, []);
+  }, []); // ✅ EMPTY DEP ARRAY (CRITICAL)
 
   /* ============================
-     START CALL (WORKFLOW MODE)
+     START CALL
   ============================ */
   const handleCall = async () => {
     if (!vapiRef.current) return;
+    if (callStatus !== CallStatus.INACTIVE) return;
 
     setCallStatus(CallStatus.CONNECTING);
 
@@ -129,15 +117,16 @@ const Agent = ({
       undefined,
       undefined,
       undefined,
-      process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID
+      process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!
     );
   };
 
   /* ============================
-     END CALL
+     END CALL (USER ONLY)
   ============================ */
   const handleDisconnect = async () => {
-    await vapiRef.current?.stop();
+    if (!vapiRef.current) return;
+    await vapiRef.current.stop();
   };
 
   /* ============================
@@ -167,7 +156,7 @@ const Agent = ({
       const res = await createFeedback({
         interviewId,
         userId,
-        transcript: messages.filter(m => !m.isPartial),
+        transcript: messages,
         feedbackId,
       });
 
@@ -179,7 +168,7 @@ const Agent = ({
     };
 
     postCall();
-  }, [callStatus]);
+  }, [callStatus, messages, interviewId, userId, feedbackId, router, type]);
 
   /* ============================
      UI
@@ -200,13 +189,12 @@ const Agent = ({
             height={120}
             className="rounded-full"
           />
-          <h3>{userName}</h3>
+          <h3>{userName ?? "Guest"}</h3>
         </div>
       </div>
 
-      {/* 🔤 SUBTITLES */}
       <div className="mt-6 w-full max-w-3xl mx-auto space-y-2 text-center">
-        {messages.slice(-5).map((msg, i) => (
+        {messages.slice(-3).map((msg, i) => (
           <p
             key={i}
             className={`text-sm ${
